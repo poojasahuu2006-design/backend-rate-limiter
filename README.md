@@ -1,6 +1,13 @@
-# Advanced Rate Limiter Backend
+# ⚡ Advanced API Rate Limiter Backend
 
-A robust backend service for API rate limiting built with Node.js, Express, and MongoDB. This project implements multiple rate-limiting algorithms and is designed to handle high concurrency using optimistic concurrency control.
+[![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+[![Express](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com)
+[![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Swagger](https://img.shields.io/badge/Swagger-OpenAPI_3.0-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)](/api-docs)
+
+A production-grade backend service for API rate limiting built with **Node.js, Express, and MongoDB**. This project implements **Token Bucket** and **Sliding Window Log** algorithms designed to handle high concurrency using MongoDB Optimistic Concurrency Control (OCC) and automated retries.
+
+> 📖 **Interactive API Documentation (Swagger UI):** Visit `/api-docs` on your deployed or local server (e.g. `http://localhost:3000/api-docs`) to test endpoints directly in your browser.
 
 ## Features
 

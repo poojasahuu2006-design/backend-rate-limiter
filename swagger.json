@@ -1,0 +1,276 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "High-Performance API Rate Limiter",
+    "description": "Production-ready API Rate Limiter engine built with Node.js, Express, and MongoDB. Implements Token Bucket and Sliding Window Log algorithms with optimistic concurrency handling, sub-second decision making, and standard HTTP rate-limit response headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`).",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Pooja Sahu",
+      "url": "https://github.com/poojasahuu2006-design",
+      "email": "poojasahuu2006@gmail.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current Server (Local or Cloud)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Rate Limiter",
+      "description": "Client registration, telemetry, and rate limit validation"
+    },
+    {
+      "name": "System",
+      "description": "Health check and diagnostics"
+    }
+  ],
+  "paths": {
+    "/api/client/register": {
+      "post": {
+        "tags": ["Rate Limiter"],
+        "summary": "Register a new client with rate limit policy",
+        "description": "Creates a new client policy specifying capacity, refill rate, and algorithm (`token_bucket` or `sliding_window`).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterClientRequest"
+              },
+              "examples": {
+                "token_bucket_example": {
+                  "summary": "Token Bucket Policy (e.g. 10 capacity, 1 token/sec)",
+                  "value": {
+                    "clientKey": "client_abc123",
+                    "clientName": "Payment Gateway Service",
+                    "capacity": 10,
+                    "refillRate": 1,
+                    "algorithm": "token_bucket"
+                  }
+                },
+                "sliding_window_example": {
+                  "summary": "Sliding Window Policy (e.g. max 5 req/min)",
+                  "value": {
+                    "clientKey": "client_xyz789",
+                    "clientName": "Analytics Collector",
+                    "capacity": 5,
+                    "refillRate": 0,
+                    "algorithm": "sliding_window"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Client created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSuccessResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Client with this clientKey already exists",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Client already exists"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/client/check": {
+      "post": {
+        "tags": ["Rate Limiter"],
+        "summary": "Check rate limit for client key (ALLOW / DENY)",
+        "description": "Simulates an incoming API request. Atomically consumes tokens/records window logs with optimistic concurrency retry handling. Returns standard `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckRateLimitRequest"
+              },
+              "example": {
+                "clientKey": "client_abc123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request allowed (within rate quota)",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "schema": { "type": "integer" },
+                "description": "Maximum token/request capacity allowed"
+              },
+              "X-RateLimit-Remaining": {
+                "schema": { "type": "integer" },
+                "description": "Remaining available tokens/requests"
+              }
+            },
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "ALLOW"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request denied (rate limit exceeded)",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "schema": { "type": "integer" }
+              },
+              "X-RateLimit-Remaining": {
+                "schema": { "type": "integer", "example": 0 }
+              }
+            },
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "DENY - Too Many Requests"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Client not found (unauthorized client key)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Unauthorized user"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable - High Traffic Contention (optimistic concurrency retry limit reached)"
+          }
+        }
+      }
+    },
+    "/api/client/clientsId": {
+      "get": {
+        "tags": ["Rate Limiter"],
+        "summary": "Get all registered clients and live token states",
+        "description": "Fetches current token balances, window logs, and policies across all registered clients in MongoDB.",
+        "responses": {
+          "200": {
+            "description": "Clients fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientsListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Service Health Check",
+        "description": "Returns uptime, database connection status, and server timestamp. Ideal for Render/cloud automated health monitoring.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy and connected to database",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "healthy",
+                  "dbConnected": true,
+                  "uptime": 145.2,
+                  "timestamp": "2026-10-24T15:50:00.000Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RegisterClientRequest": {
+        "type": "object",
+        "required": ["clientKey", "clientName", "capacity", "refillRate", "algorithm"],
+        "properties": {
+          "clientKey": {
+            "type": "string",
+            "description": "Unique API key identifier for the client",
+            "example": "client_abc123"
+          },
+          "clientName": {
+            "type": "string",
+            "description": "Human-readable client/service name",
+            "example": "E-Commerce Gateway"
+          },
+          "capacity": {
+            "type": "integer",
+            "description": "Maximum token bucket capacity or max requests allowed per 1-minute sliding window",
+            "example": 10
+          },
+          "refillRate": {
+            "type": "number",
+            "description": "Tokens added per second (used for token_bucket algorithm)",
+            "example": 1
+          },
+          "algorithm": {
+            "type": "string",
+            "enum": ["token_bucket", "sliding_window"],
+            "description": "Rate limiting algorithm to use",
+            "example": "token_bucket"
+          }
+        }
+      },
+      "CheckRateLimitRequest": {
+        "type": "object",
+        "required": ["clientKey"],
+        "properties": {
+          "clientKey": {
+            "type": "string",
+            "description": "The client key to evaluate against the rate limit policy",
+            "example": "client_abc123"
+          }
+        }
+      },
+      "ClientSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "Client created successfully" },
+          "client": { "type": "object" }
+        }
+      },
+      "ClientsListResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "clients are successfully fetched" },
+          "client": {
+            "type": "array",
+            "items": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}
